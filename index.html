@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Voice Writer By Andika — Live Speech to Text</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  
+  :root {
+    --bg-deep: #07070f; --bg-card: rgba(20,20,35,0.7);
+    --border: rgba(120,120,200,0.15); --text: #e8e8f5;
+    --text-dim: #8a8aa8; --accent: #7c5cff; --accent-glow: #a78bfa;
+    --green: #22d3a8; --red: #ff4d6d;
+  }
+  
+  /* Desain Mobile-First */
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-deep); color: var(--text);
+    min-height: 100vh; display: flex; flex-direction: column;
+    padding: 16px; position: relative; overflow-x: hidden;
+  }
+  
+  body::before {
+    content: ''; position: fixed; top: -50%; left: -20%;
+    width: 80vw; height: 80vw;
+    background: radial-gradient(circle, rgba(124,92,255,0.15) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  
+  .app { 
+    max-width: 800px; width: 100%; margin: 0 auto; position: relative; 
+    z-index: 1; display: flex; flex-direction: column; gap: 16px; flex: 1; 
+  }
+  
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  
+  .logo {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--green));
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+    box-shadow: 0 4px 12px rgba(124,92,255,0.35); transition: transform 0.3s;
+  }
+  
+  .logo.listening { animation: logoPulse 1.5s ease-in-out infinite; }
+  @keyframes logoPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.1);} }
+  
+  .brand-text h1 {
+    font-size: 1.1rem; font-weight: 700;
+    background: linear-gradient(135deg, #fff 0%, var(--accent-glow) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  
+  .brand-text p { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+  
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 99px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    font-size: 0.75rem; font-weight: 500; color: var(--text-dim); transition: all 0.3s;
+  }
+  
+  .status-pill.active { background: rgba(34,211,168,0.1); border-color: rgba(34,211,168,0.3); color: var(--green); }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.active .dot { box-shadow: 0 0 8px var(--green); animation: blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+  /* Timer & Indikator Simpan */
+  .meta-info { 
+    display: flex; justify-content: space-between; font-size: 0.75rem; 
+    color: var(--text-dim); padding: 0 4px; font-family: 'JetBrains Mono', monospace;
+  }
+  .save-indicator { color: var(--green); opacity: 0; transition: opacity 0.3s; }
+  .save-indicator.show { opacity: 1; }
+
+  .editor-card {
+    border-radius: 16px; background: var(--bg-card); backdrop-filter: blur(10px);
+    border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column;
+    flex: 1; transition: border-color 0.4s;
+  }
+  
+  .editor-card.listening { border-color: rgba(124,92,255,0.5); box-shadow: 0 0 30px rgba(124,92,255,0.15); }
+  
+  #transcript {
+    flex: 1; min-height: 250px; padding: 16px;
+    background: transparent; color: var(--text); border: none; outline: none; resize: none;
+    font-size: 1rem; line-height: 1.7; font-family: 'Inter', sans-serif;
+  }
+  
+  #transcript::placeholder { color: rgba(138,138,168,0.5); font-style: italic; }
+  
+  .interim-bar {
+    padding: 10px 16px; min-height: 40px;
+    background: rgba(124,92,255,0.08); border-top: 1px solid var(--border);
+    color: var(--accent-glow); font-size: 0.9rem; font-style: italic;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  
+  .interim-bar::before { content: '▸'; font-style: normal; flex-shrink: 0; }
+  .interim-bar:empty::before { content: ''; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  
+  .btn {
+    padding: 14px 20px; border: none; border-radius: 12px;
+    font-size: 0.95rem; font-weight: 600; font-family: inherit;
+    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #9d7bff); color: white; flex: 1; box-shadow: 0 4px 15px rgba(124,92,255,0.3); }
+  .btn-danger { background: rgba(255,77,109,0.15); color: var(--red); border: 1px solid rgba(255,77,109,0.3); flex: 1; }
+  .btn-ghost { background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--border); }
+  
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
+    padding: 12px 20px; border-radius: 10px; background: rgba(255,77,109,0.95); color: white;
+    font-size: 0.85rem; font-weight: 500; opacity: 0; transition: all 0.3s; z-index: 100; text-align: center;
+  }
+  
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  
+  @media (min-width: 600px) {
+    #transcript { min-height: 400px; font-size: 1.1rem; }
+    .brand-text h1 { font-size: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <div class="logo" id="logo">🎙️</div>
+      <div class="brand-text">
+        <h1>Voice Writer By Andika</h1>
+        <p>Catat Kuliah Tanpa Ribet</p>
+      </div>
+    </div>
+    <div class="status-pill" id="statusPill">
+      <span class="dot"></span>
+      <span id="statusText">Siap</span>
+    </div>
+  </header>
+
+  <div class="meta-info">
+    <span id="timerDisplay">00:00:00</span>
+    <span class="save-indicator" id="saveIndicator">✓ Tersimpan</span>
+  </div>
+
+  <div class="editor-card" id="editorCard">
+    <textarea id="transcript" placeholder="Tekan 'Mulai Merekam' dan biarkan dosen berbicara. Teks akan muncul otomatis di sini..."></textarea>
+    <div class="interim-bar" id="interim"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStart"><span>▶</span> Mulai Merekam</button>
+    <button class="btn btn-danger" id="btnStop" disabled><span>■</span> Berhenti</button>
+    <button class="btn btn-ghost" id="btnCopy"><span>📋</span> Salin</button>
+    <button class="btn btn-ghost" id="btnClear"><span>🗑️</span> Hapus</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const btnClear = document.getElementById('btnClear');
+  const btnCopy = document.getElementById('btnCopy');
+  const transcriptEl = document.getElementById('transcript');
+  const interimEl = document.getElementById('interim');
+  const statusPill = document.getElementById('statusPill');
+  const statusText = document.getElementById('statusText');
+  const editorCard = document.getElementById('editorCard');
+  const logo = document.getElementById('logo');
+  const toast = document.getElementById('toast');
+  const timerDisplay = document.getElementById('timerDisplay');
+  const saveIndicator = document.getElementById('saveIndicator');
+
+  let recognition = null;
+  let isListening = false;
+  let finalTranscript = '';
+  let restartTimeout = null;
+  let restartAttempts = 0;
+  let timerInterval = null;
+  let secondsElapsed = 0;
+  let wakeLock = null;
+
+  // === FITUR 1: Auto-Save ke HP (LocalStorage) ===
+  // Memuat teks yang tersimpan saat halaman dibuka
+  const savedText = localStorage.getItem('voiceWriter_autosave');
+  if (savedText) {
+    transcriptEl.value = savedText;
+    finalTranscript = savedText;
+  }
+
+  // Menyimpan teks otomatis setiap 2 detik saat ada perubahan
+  let saveTimeout = null;
+  function autoSave() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      localStorage.setItem('voiceWriter_autosave', transcriptEl.value);
+      saveIndicator.classList.add('show');
+      setTimeout(() => saveIndicator.classList.remove('show'), 1500);
+    }, 2000);
+  }
+
+  transcriptEl.addEventListener('input', () => {
+    finalTranscript = transcriptEl.value;
+    autoSave();
+  });
+
+  // === FITUR 2: Timer Durasi ===
+  function formatTime(totalSec) {
+    const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSec % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  function startTimer() {
+    secondsElapsed = 0;
+    timerDisplay.textContent = formatTime(secondsElapsed);
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      secondsElapsed++;
+      timerDisplay.textContent = formatTime(secondsElapsed);
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+  }
+
+  // === FITUR 3: Wake Lock (Layar Tetap Menyala) ===
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock aktif - Layar akan tetap menyala');
+      }
+    } catch (err) {
+      console.warn('Wake Lock gagal:', err);
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock !== null) {
+      wakeLock.release();
+      wakeLock = null;
+    }
+  }
+
+  // === LOGIKA UTAMA SPEECH RECOGNITION ===
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+
+  function forceRestart() {
+    if (!isListening) return;
+    clearTimeout(restartTimeout);
+    const delay = Math.min(300 * Math.pow(2, restartAttempts), 3000);
+    restartAttempts++;
+    restartTimeout = setTimeout(() => {
+      if (!isListening) return;
+      try {
+        recognition.start();
+        setTimeout(() => { restartAttempts = 0; }, 1000);
+      } catch (e) { 
+        forceRestart(); 
+      }
+    }, delay);
+  }
+
+  function setListening(state) {
+    isListening = state;
+    if (state) {
+      statusPill.classList.add('active');
+      statusText.textContent = 'Merekam';
+      editorCard.classList.add('listening');
+      logo.classList.add('listening');
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      startTimer();
+      requestWakeLock();
+    } else {
+      statusPill.classList.remove('active');
+      statusText.textContent = 'Siap';
+      editorCard.classList.remove('listening');
+      logo.classList.remove('listening');
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      stopTimer();
+      releaseWakeLock();
+      clearTimeout(restartTimeout);
+      restartAttempts = 0;
+    }
+  }
+
+  function stopLive() {
+    isListening = false;
+    clearTimeout(restartTimeout);
+    restartAttempts = 0;
+    try { 
+      recognition.stop(); 
+    } catch (e) {}
+    setListening(false);
+    interimEl.textContent = '';
+    localStorage.setItem('voiceWriter_autosave', transcriptEl.value); // Save terakhir
+  }
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = function(event) {
+      let interimText = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const text = result[0].transcript;
+        if (result.isFinal) {
+          if (finalTranscript && !finalTranscript.endsWith(' ')) finalTranscript += ' ';
+          finalTranscript += text;
+          transcriptEl.value = finalTranscript;
+          transcriptEl.scrollTop = transcriptEl.scrollHeight;
+          autoSave();
+        } else {
+          interimText += text;
+        }
+      }
+      interimEl.textContent = interimText;
+    };
+
+    recognition.onstart = function() {
+      setListening(true);
+      interimEl.textContent = '';
+      restartAttempts = 0;
+    };
+
+    recognition.onend = function() {
+      if (isListening) {
+        forceRestart();
+      } else { 
+        setListening(false); 
+        interimEl.textContent = ''; 
+      }
+    };
+
+    recognition.onerror = function(event) {
+      if (event.error === 'no-speech' || event.error === 'aborted') return;
+      if (event.error === 'not-allowed') {
+        showToast('Izin mikrofon ditolak. Cek pengaturan browser HP kamu.');
+        setListening(false);
+        return;
+      }
+      showToast('Koneksi terputus, mencoba menyambung...');
+    };
+
+    btnStart.addEventListener('click', () => {
+      finalTranscript = transcriptEl.value;
+      restartAttempts = 0;
+      try { 
+        recognition.start(); 
+      } catch (e) { 
+        console.error(e); 
+      }
+    });
+
+    btnStop.addEventListener('click', stopLive);
+  } else {
+    showToast('Browser HP kamu tidak mendukung fitur ini. Gunakan Chrome.');
+    btnStart.disabled = true;
+    btnStart.textContent = '⚠️ Tidak Didukung';
+  }
+
+  // === TOMBOL SALIN & HAPUS ===
+  btnClear.addEventListener('click', () => {
+    if (transcriptEl.value.trim() === '') return;
+    if (!confirm('Hapus semua catatan?')) return;
+    finalTranscript = '';
+    transcriptEl.value = '';
+    interimEl.textContent = '';
+    localStorage.removeItem('voiceWriter_autosave');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    const text = transcriptEl.value.trim();
+    if (!text) { 
+      showToast('Belum ada teks untuk disalin.'); 
+      return; 
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('✓ Teks berhasil disalin!');
+    } catch (err) {
+      showToast('Gagal menyalin teks.');
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
